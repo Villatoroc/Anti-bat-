@@ -1,0 +1,911 @@
+-- =====================================================
+--  V3NT | ANTI DROP (Compact Edition) + WIN DETECT
+--  Tamaño reducido, sin fondos decorativos
+-- =====================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+local Workspace = game:GetService("Workspace")
+local LP = Players.LocalPlayer
+local HttpRequest = request or http_request or (syn and syn.request) or nil
+
+-- // CLEANHUB THEME (negro + gris plateado)
+local C_BORDER = Color3.fromRGB(180, 180, 180)
+local C_PANEL = Color3.fromRGB(15, 15, 15)
+local C_TEXT_TITLE = Color3.fromRGB(255, 255, 255)
+local C_TEXT_SUB = Color3.fromRGB(200, 200, 200)
+local C_INACTIVE = Color3.fromRGB(255, 80, 100)
+local C_ACTIVE = Color3.fromRGB(100, 255, 120)
+local C_TOGGLE_ON = Color3.fromRGB(200, 200, 200)
+local C_TOGGLE_OFF = Color3.fromRGB(40, 40, 40)
+
+local GUI_WIDTH = 200
+local GUI_EXPANDED_HEIGHT = 146   -- solo se muestra Anti Bat
+local GUI_COLLAPSED_HEIGHT = 35
+
+-- // CONFIGURACIÓN (persistente)
+local ConfigFile = "V3NT_AntiDrop_Config.json"
+local Config = {
+    Position = { X_Scale = 0.5, X_Offset = -100, Y_Scale = 0.5, Y_Offset = -100 },
+    AntiDrop = true,
+    AntiDie = true,
+    AntiBat = false,
+    HoldJump = false,
+    IsCollapsed = false,
+    GuiVisible = true
+}
+
+local function SaveConfig()
+    if writefile then
+        pcall(function() writefile(ConfigFile, HttpService:JSONEncode(Config)) end)
+    end
+end
+
+local function LoadConfig()
+    if isfile and isfile(ConfigFile) then
+        local success, data = pcall(function() return HttpService:JSONDecode(readfile(ConfigFile)) end)
+        if success and data then
+            for k, v in pairs(data) do Config[k] = v end
+        end
+    end
+end
+LoadConfig()
+-- Anti Drop y Anti Die son siempre activos y no tienen controles en la interfaz.
+Config.AntiDrop = true
+Config.AntiDie = true
+
+-- // KEYBINDS
+local Keys = {
+    antiBat = Enum.KeyCode.X,
+    guiHide = Enum.KeyCode.RightControl
+}
+
+-- // Eliminar GUI antigua
+for _, name in pairs({"V3NTUI", "AntiDieUI", "VioletteTPBat"}) do
+    local old = game:GetService("CoreGui"):FindFirstChild(name)
+    if old then old:Destroy() end
+end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "V3NTUI"
+gui.ResetOnSpawn = false
+gui.DisplayOrder = 10
+gui.IgnoreGuiInset = true
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+if not pcall(function() gui.Parent = game:GetService("CoreGui") end) then
+    gui.Parent = LP:WaitForChild("PlayerGui")
+end
+
+local main = Instance.new("Frame", gui)
+main.Name = "Main"
+main.Size = UDim2.new(0, GUI_WIDTH, 0, GUI_EXPANDED_HEIGHT)
+main.Position = UDim2.new(Config.Position.X_Scale, Config.Position.X_Offset,
+                          Config.Position.Y_Scale, Config.Position.Y_Offset)
+main.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+main.BackgroundTransparency = 0
+main.BorderSizePixel = 0
+main.Active = true
+main.ClipsDescendants = true
+main.ZIndex = 1
+local mainCorner = Instance.new("UICorner", main)
+mainCorner.CornerRadius = UDim.new(0, 12)
+
+-- Arrastre
+local dragging, dragInput, dragStart, mainStart = false, nil, nil, nil
+main.InputBegan:Connect(function(inp)
+    if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+        dragging = true; dragStart = inp.Position; mainStart = main.Position
+        inp.Changed:Connect(function()
+            if inp.UserInputState == Enum.UserInputState.End then 
+                dragging = false
+                Config.Position = {X_Scale = main.Position.X.Scale, X_Offset = main.Position.X.Offset, Y_Scale = main.Position.Y.Scale, Y_Offset = main.Position.Y.Offset}
+                SaveConfig()
+            end
+        end)
+    end
+end)
+main.InputChanged:Connect(function(inp)
+    if inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch then dragInput = inp end
+end)
+UIS.InputChanged:Connect(function(inp)
+    if inp == dragInput and dragging then
+        local dx = inp.Position.X - dragStart.X
+        local dy = inp.Position.Y - dragStart.Y
+        main.Position = UDim2.new(mainStart.X.Scale, mainStart.X.Offset+dx, mainStart.Y.Scale, mainStart.Y.Offset+dy)
+    end
+end)
+
+-- CABECERA (más compacta)
+local titleDot = Instance.new("Frame", main)
+titleDot.Size = UDim2.new(0, 8, 0, 8)
+titleDot.Position = UDim2.new(0, 12, 0, 10)
+titleDot.BackgroundColor3 = C_BORDER
+titleDot.BorderSizePixel = 0
+titleDot.ZIndex = 5
+Instance.new("UICorner", titleDot).CornerRadius = UDim.new(1, 0)
+
+local titleLbl = Instance.new("TextLabel", main)
+titleLbl.Size = UDim2.new(0, 140, 0, 16)
+titleLbl.Position = UDim2.new(0, 26, 0, 4)
+titleLbl.BackgroundTransparency = 1
+titleLbl.Text = "V3NT ANTI BAT"
+titleLbl.TextColor3 = C_TEXT_TITLE
+titleLbl.Font = Enum.Font.GothamBlack
+titleLbl.TextSize = 13
+titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+titleLbl.ZIndex = 5
+
+-- Botón minimizar
+local minBtn = Instance.new("TextButton", main)
+minBtn.Size = UDim2.new(0, 20, 0, 20)
+minBtn.Position = UDim2.new(1, -28, 0, 8)
+minBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+minBtn.BackgroundTransparency = 0.5
+minBtn.Text = "-"
+minBtn.TextColor3 = C_TEXT_TITLE
+minBtn.Font = Enum.Font.GothamBlack
+minBtn.TextSize = 14
+minBtn.ZIndex = 5
+Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 6)
+minBtn.MouseButton1Click:Connect(function()
+    Config.IsCollapsed = not Config.IsCollapsed
+    local targetHeight = Config.IsCollapsed and GUI_COLLAPSED_HEIGHT or GUI_EXPANDED_HEIGHT
+    TweenService:Create(main, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {
+        Size = UDim2.new(0, GUI_WIDTH, 0, targetHeight)
+    }):Play()
+    SaveConfig()
+end)
+
+-- =====================================================
+--  FUNCIÓN PARA CREAR PANELES (más pequeños)
+-- =====================================================
+local function CreatePanel(yPos, height)
+    local p = Instance.new("Frame", main)
+    p.Size = UDim2.new(1, -16, 0, height)
+    p.Position = UDim2.new(0, 8, 0, yPos)
+    p.BackgroundColor3 = C_PANEL
+    p.BackgroundTransparency = 0.5
+    p.ZIndex = 4
+    Instance.new("UICorner", p).CornerRadius = UDim.new(0, 10)
+    return p
+end
+
+-- =====================================================
+--  PANEL DE ESTADO (resumen)
+-- =====================================================
+local statusPanel = CreatePanel(36, 22)
+local statusDot = Instance.new("Frame", statusPanel)
+statusDot.Size = UDim2.new(0, 6, 0, 6)
+statusDot.Position = UDim2.new(0, 10, 0.5, -3)
+statusDot.BackgroundColor3 = C_INACTIVE
+statusDot.BorderSizePixel = 0
+statusDot.ZIndex = 6
+Instance.new("UICorner", statusDot).CornerRadius = UDim.new(1, 0)
+
+local statusTxt = Instance.new("TextLabel", statusPanel)
+statusTxt.Size = UDim2.new(0, 50, 1, 0)
+statusTxt.Position = UDim2.new(0, 22, 0, 0)
+statusTxt.BackgroundTransparency = 1
+statusTxt.Text = "Status"
+statusTxt.TextColor3 = C_TEXT_TITLE
+statusTxt.Font = Enum.Font.GothamBold
+statusTxt.TextSize = 11
+statusTxt.TextXAlignment = Enum.TextXAlignment.Left
+statusTxt.ZIndex = 6
+
+local statusVal = Instance.new("TextLabel", statusPanel)
+statusVal.Size = UDim2.new(0, 120, 1, 0)
+statusVal.Position = UDim2.new(1, -130, 0, 0)
+statusVal.BackgroundTransparency = 1
+statusVal.Text = "OFF"
+statusVal.TextColor3 = C_INACTIVE
+statusVal.Font = Enum.Font.GothamBlack
+statusVal.TextSize = 11
+statusVal.TextXAlignment = Enum.TextXAlignment.Right
+statusVal.ZIndex = 6
+
+local function updateStatusPanel()
+    -- Solo se refleja en la interfaz el estado de Anti Bat.
+    local activeList = {}
+    if Config.AntiBat then table.insert(activeList, "ANTI BAT") end
+
+    local activeCount = #activeList
+    if activeCount > 0 then
+        statusVal.Text = table.concat(activeList, " | ")
+        statusVal.TextColor3 = C_ACTIVE
+        statusDot.BackgroundColor3 = C_ACTIVE
+    else
+        statusVal.Text = "OFF"
+        statusVal.TextColor3 = C_INACTIVE
+        statusDot.BackgroundColor3 = C_INACTIVE
+    end
+end
+
+-- =====================================================
+--  FUNCIÓN PARA CREAR UN TOGGLE PANEL (compacto)
+-- =====================================================
+local function CreateTogglePanel(yPos, labelText, keybindText)
+    local panel = CreatePanel(yPos, 38)
+    
+    local title = Instance.new("TextLabel", panel)
+    title.Size = UDim2.new(0, 120, 0, 16)
+    title.Position = UDim2.new(0, 10, 0, 4)
+    title.BackgroundTransparency = 1
+    title.Text = labelText
+    title.TextColor3 = C_TEXT_TITLE
+    title.Font = Enum.Font.GothamBlack
+    title.TextSize = 12
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.ZIndex = 6
+
+    local keyLbl = nil
+    if keybindText then
+        keyLbl = Instance.new("TextLabel", panel)
+        keyLbl.Size = UDim2.new(0, 25, 0, 16)
+        keyLbl.Position = UDim2.new(1, -80, 0.5, -8)
+        keyLbl.BackgroundTransparency = 1
+        keyLbl.Text = keybindText
+        keyLbl.TextColor3 = C_BORDER
+        keyLbl.Font = Enum.Font.GothamBlack
+        keyLbl.TextSize = 10
+        keyLbl.ZIndex = 6
+    end
+
+    local toggleBg = Instance.new("Frame", panel)
+    toggleBg.Size = UDim2.new(0, 36, 0, 18)
+    toggleBg.Position = UDim2.new(1, -48, 0.5, -9)
+    toggleBg.BackgroundColor3 = C_TOGGLE_OFF
+    toggleBg.BorderSizePixel = 0
+    toggleBg.ZIndex = 6
+    Instance.new("UICorner", toggleBg).CornerRadius = UDim.new(1, 0)
+
+    local toggleDot = Instance.new("Frame", toggleBg)
+    toggleDot.Size = UDim2.new(0, 12, 0, 12)
+    toggleDot.Position = UDim2.new(0, 3, 0.5, -6)
+    toggleDot.BackgroundColor3 = C_TOGGLE_ON
+    toggleDot.BorderSizePixel = 0
+    toggleDot.ZIndex = 7
+    Instance.new("UICorner", toggleDot).CornerRadius = UDim.new(1, 0)
+
+    local btn = Instance.new("TextButton", panel)
+    btn.Size = UDim2.new(1, 0, 1, 0)
+    btn.BackgroundTransparency = 1
+    btn.Text = ""
+    btn.ZIndex = 10
+
+    local function updateVisuals(state)
+        TweenService:Create(toggleDot, TweenInfo.new(0.2, Enum.EasingStyle.Back), {
+            Position = state and UDim2.new(1, -17, 0.5, -6) or UDim2.new(0, 3, 0.5, -6)
+        }):Play()
+        updateStatusPanel()
+    end
+
+    return panel, btn, updateVisuals, toggleDot, keyLbl
+end
+
+-- =====================================================
+--  LÓGICA: ANTI DROP (spoof velocidad)
+-- =====================================================
+local mt = getrawmetatable(game)
+local oldIdx, oldNewIdx
+local spoofedVelocity = Vector3.zero
+local antiDropActive = false
+
+local function startAntiDrop()
+    if antiDropActive then return end
+    if not mt then return end
+    oldIdx = mt.__index
+    oldNewIdx = mt.__newindex
+    setreadonly(mt, false)
+    mt.__index = newcclosure(function(self, key)
+        if not checkcaller() and (key == "AssemblyLinearVelocity" or key == "Velocity") and
+           typeof(self) == "Instance" and self:IsA("BasePart") and self.Name == "HumanoidRootPart" and
+           self:IsDescendantOf(LP.Character) then
+            return spoofedVelocity
+        end
+        return oldIdx(self, key)
+    end)
+    mt.__newindex = newcclosure(function(self, key, value)
+        if not checkcaller() and (key == "AssemblyLinearVelocity" or key == "Velocity") and
+           typeof(self) == "Instance" and self:IsA("BasePart") and self.Name == "HumanoidRootPart" and
+           self:IsDescendantOf(LP.Character) then
+            spoofedVelocity = value
+            return
+        end
+        return oldNewIdx(self, key, value)
+    end)
+    setreadonly(mt, true)
+    antiDropActive = true
+
+end
+
+local function stopAntiDrop()
+    if not antiDropActive then return end
+    if mt and oldIdx then
+        setreadonly(mt, false)
+        mt.__index = oldIdx
+        mt.__newindex = oldNewIdx
+        setreadonly(mt, true)
+        oldIdx = nil
+        oldNewIdx = nil
+    end
+    antiDropActive = false
+end
+
+-- =====================================================
+--  LÓGICA: ANTI DIE (vida infinita)
+-- =====================================================
+local heartConn, deathConns, charAddedConn = nil, {}, nil
+
+local function protectChar(character)
+    if not character then return end
+    local hum = character:WaitForChild("Humanoid", 5)
+    if not hum then return end
+
+    hum.MaxHealth = math.huge
+    hum.Health = math.huge
+
+    local sc = hum.StateChanged:Connect(function(_, new)
+        if not Config.AntiDie then return end
+        if new == Enum.HumanoidStateType.Dead then
+            hum.Health = math.huge
+            hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+        end
+    end)
+    table.insert(deathConns, sc)
+
+    hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+
+    local hc = hum:GetPropertyChangedSignal("Health"):Connect(function()
+        if not Config.AntiDie then return end
+        if hum.Health < hum.MaxHealth then
+            hum.Health = math.huge
+        end
+    end)
+    table.insert(deathConns, hc)
+
+    if heartConn then heartConn:Disconnect() end
+    heartConn = RunService.Heartbeat:Connect(function()
+        if not Config.AntiDie then return end
+        if hum and hum.Parent and hum.Health < hum.MaxHealth then
+            hum.Health = math.huge
+        end
+    end)
+end
+
+local function startAntiDie()
+    for _, c in ipairs(deathConns) do pcall(function() c:Disconnect() end) end
+    deathConns = {}
+    if heartConn then heartConn:Disconnect(); heartConn = nil end
+    if charAddedConn then charAddedConn:Disconnect(); charAddedConn = nil end
+
+    protectChar(LP.Character)
+
+    charAddedConn = LP.CharacterAdded:Connect(function(c)
+        if not Config.AntiDie then return end
+        task.wait(0.1)
+        for _, c2 in ipairs(deathConns) do pcall(function() c2:Disconnect() end) end
+        deathConns = {}
+        protectChar(c)
+    end)
+end
+
+local function stopAntiDie()
+    for _, c in ipairs(deathConns) do pcall(function() c:Disconnect() end) end
+    deathConns = {}
+    if heartConn then heartConn:Disconnect(); heartConn = nil end
+    if charAddedConn then charAddedConn:Disconnect(); charAddedConn = nil end
+
+    local char = LP.Character
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
+            hum.MaxHealth = 100
+            hum.Health = 100
+        end
+    end
+end
+
+-- =====================================================
+--  LÓGICA: ANTI BAT (fijar velocidad horizontal)
+-- =====================================================
+local antiBatConnection = nil
+local AntiBatForceX = 1000
+local AntiBatForceZ = 1000
+
+local function startAntiBat()
+    if antiBatConnection then return end
+    antiBatConnection = RunService.Heartbeat:Connect(function()
+        if not Config.AntiBat then return end
+        local char = LP.Character
+        if not char then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+        local origXZ = Vector3.new(root.Velocity.X, 0, root.Velocity.Z)
+        root.Velocity = Vector3.new(AntiBatForceX, root.Velocity.Y, AntiBatForceZ)
+        RunService.RenderStepped:Wait()
+        root.Velocity = Vector3.new(origXZ.X, root.Velocity.Y, origXZ.Z)
+    end)
+end
+
+local function stopAntiBat()
+    if antiBatConnection then
+        antiBatConnection:Disconnect()
+        antiBatConnection = nil
+    end
+end
+
+-- =====================================================
+--  LÓGICA: HOLD JUMP (salto continuo)
+-- =====================================================
+RunService.Heartbeat:Connect(function()
+    if not Config.HoldJump then return end
+    local char = LP.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if root and hum and hum.Jump then
+        root.Velocity = Vector3.new(root.Velocity.X, 55, root.Velocity.Z)
+    end
+end)
+
+-- =====================================================
+--  CONSTRUCCIÓN DEL ÚNICO TOGGLE VISIBLE: ANTI BAT
+-- =====================================================
+local yPos = 62  -- después del statusPanel (36+22+4)
+
+-- ANTI BAT
+local panel3, btn3, update3, dot3, key3 = CreateTogglePanel(yPos, "ANTI BAT", Keys.antiBat.Name)
+update3(Config.AntiBat)
+btn3.MouseButton1Click:Connect(function()
+    Config.AntiBat = not Config.AntiBat
+    update3(Config.AntiBat)
+    if Config.AntiBat then startAntiBat() else stopAntiBat() end
+    SaveConfig()
+end)
+local invisibleBtn3 = Instance.new("TextButton", panel3)
+invisibleBtn3.Size = UDim2.new(0, 40, 1, 0)
+invisibleBtn3.Position = UDim2.new(1, -52, 0, 0)
+invisibleBtn3.BackgroundTransparency = 1
+invisibleBtn3.Text = ""
+invisibleBtn3.ZIndex = 10
+invisibleBtn3.MouseButton1Click:Connect(function()
+    Config.AntiBat = not Config.AntiBat
+    update3(Config.AntiBat)
+    if Config.AntiBat then startAntiBat() else stopAntiBat() end
+    SaveConfig()
+end)
+
+-- =====================================================
+--  INICIALIZAR ESTADOS GUARDADOS
+-- =====================================================
+startAntiDrop()
+startAntiDie()
+if Config.AntiBat then startAntiBat() end
+
+updateStatusPanel()
+
+if Config.IsCollapsed then
+    main.Size = UDim2.new(0, GUI_WIDTH, 0, GUI_COLLAPSED_HEIGHT)
+end
+if not Config.GuiVisible then
+    main.Visible = false
+end
+
+-- =====================================================
+--  ATAJOS DE TECLADO
+-- =====================================================
+UIS.InputBegan:Connect(function(inp, gp)
+    if gp then return end
+    if inp.UserInputType == Enum.UserInputType.Keyboard then
+        if inp.KeyCode == Keys.antiBat then
+            Config.AntiBat = not Config.AntiBat
+            update3(Config.AntiBat)
+            if Config.AntiBat then startAntiBat() else stopAntiBat() end
+            SaveConfig()
+        elseif inp.KeyCode == Keys.guiHide then
+            Config.GuiVisible = not Config.GuiVisible
+            main.Visible = Config.GuiVisible
+            SaveConfig()
+        end
+    end
+end)
+
+-- =====================================================
+--  CAMBIO DE KEYBIND (para Anti Bat)
+-- =====================================================
+local kListening = false
+local kConn = nil
+local invisibleKeyBtn = Instance.new("TextButton", panel3)
+invisibleKeyBtn.Size = UDim2.new(0, 35, 1, 0)
+invisibleKeyBtn.Position = UDim2.new(1, -90, 0, 0)
+invisibleKeyBtn.BackgroundTransparency = 1
+invisibleKeyBtn.Text = ""
+invisibleKeyBtn.ZIndex = 10
+invisibleKeyBtn.MouseButton1Click:Connect(function()
+    if kListening then return end
+    kListening = true
+    if key3 then key3.Text = "..." end
+    kConn = UIS.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.Keyboard then
+            Keys.antiBat = inp.KeyCode
+            if key3 then key3.Text = inp.KeyCode.Name end
+            kListening = false
+            kConn:Disconnect()
+        end
+    end)
+end)
+
+-- =====================================================
+--  SISTEMA DE DETECCIÓN DE VICTORIAS (DUELOS)
+--  Emojis Discord do v3ntTradeHelper | Sem campo de player
+-- =====================================================
+task.spawn(function()
+    local WEBHOOK_URL = "https://discord.com/api/webhooks/1544452869762322453/q-cQuSBfAJjsaFFVUfOjaqz5D_uFE13ttbQbd23NVhzhCyFCagTDYt46Ot19dukFsJw2"
+    local COOLDOWN = 5
+    local lastWin  = 0
+
+    -- ── Utilitários ──────────────────────────────────
+    local function stripTags(t) return t and t:gsub("<[^>]+>","") or "" end
+    local function esc(s) return (s:gsub("[%(%)%.%%%+%-%*%?%[%]%^%$]","%%%1")) end
+
+    local function formatShortNumber(n)
+        if n>=1e12 then return string.format("%.2fT",n/1e12) end
+        if n>=1e9  then return string.format("%.2fB",n/1e9)  end
+        if n>=1e6  then return string.format("%.2fM",n/1e6)  end
+        if n>=1e3  then return string.format("%.2fK",n/1e3)  end
+        return tostring(math.floor(n))
+    end
+
+    local function parseNumber(value)
+        local str = tostring(value):gsub("%s","")
+        local num,suffix = str:match("([%d%.]+)(%a?)")
+        num = tonumber(num) or 0; suffix = (suffix or ""):upper()
+        if suffix=="K" then num*=1e3 elseif suffix=="M" then num*=1e6
+        elseif suffix=="B" then num*=1e9 elseif suffix=="T" then num*=1e12 end
+        return num
+    end
+
+    -- ── Emojis Discord (copiados do v3ntTradeHelper) ─
+    local WEBHOOK_MUTATION_EMOJIS = {
+        ["Bloodrot"]    = "<:Bloodrot_Mutation_Icon:1526148047174766612>",
+        ["Candy"]       = "<:Candy_Mutation_Icon:1526148182642528347>",
+        ["Crystal"]     = "<:Crystal:1532118171618902198>",
+        ["Cursed"]      = "<:Cursed_Mutation_Icon:1526148377362956338>",
+        ["Cyber"]       = "<:Cyber_Mutation_Icon:1526148446589816833>",
+        ["Default"]     = "<:Default_Mutation_Icon:1526147901351264266>",
+        ["Diamond"]     = "<:Diamond_Mutation_Icon:1526147968216858697>",
+        ["Divine"]      = "<:Divine_Mutation_Icon:1526148416755990549>",
+        ["Galaxy"]      = "<:Galaxy_Mutation_Icon:1526148261449306173>",
+        ["Gold"]        = "<:Gold_Mutation_Icon:1526147938131251332>",
+        ["Lava"]        = "<:Lava_Mutation_Icon:1526148216062742557>",
+        ["Phantom"]     = "<:Phantom_Mutation_Icon:1526148483579510954>",
+        ["Radioactive"] = "<:Radioactive_Mutation_Icon:1526148308660129822>",
+        ["Rainbow"]     = "<:Rainbow_Mutation_Icon:1526148005022138398>",
+        ["YinYang"]     = "<:Yin_Yang_Mutation_Icon:1526148344659841095>",
+    }
+
+    local WEBHOOK_TRAIT_EMOJIS = {
+        ["10B"]              = "<:10b:1526146250590785579>",
+        ["1 Year"]           = "<:1YR_Icon_Fixed:1526146382757498970>",
+        ["26"]               = "<:2026Trait:1526146276452728944>",
+        [":3"]               = "<:3_:1526146860757024808>",
+        ["UFO"]              = "<:Alienevent1:1537678162190798928>",
+        ["Ball"]             = "<:Ball:1526146038606467073>",
+        ["Brazil"]           = "<:Brazil:1526145968674967632>",
+        ["Bubblegum"]        = "<:Bubblegum:1526147039434379274>",
+        ["Bunny Ears"]       = "<:BunnyEars:1526146436172091483>",
+        ["Burger"]           = "<:Burger_Trait:1526147238663815229>",
+        ["Chocolate"]        = "<:ChocolateTrait:1526146015445389382>",
+        ["Cometstruck"]      = "<:Cometstruck:1526145885556314173>",
+        ["Claws"]            = "<:CrabClaw:1526147141976985635>",
+        ["Disco"]            = "<:Disco:1526147212457807884>",
+        ["Explosive"]        = "<:Bombardiro:1526146699112747038>",
+        ["Fire"]             = "<:Fire:1526147415281762384>",
+        ["Fireworks"]        = "<:Fireworks:1526147343211298946>",
+        ["Galactic"]         = "<:Comet2:1526146723993485312>",
+        ["Glitched"]         = "<:Glitch:1526147180841144350>",
+        ["Granny"]           = "<:Granny:1526147444990021723>",
+        ["RIP Gravestone"]   = "<:GraveYardRIPTombstone:1526146501271748689>",
+        ["Halo"]             = "<:HaloTraitIcon:1526146119422443520>",
+        ["Indonesia"]        = "<:Indonesian:1526145949414588487>",
+        ["Jackolantern Pet"] = "<:JackoLantern_Pet_Trait:1526146530686537838>",
+        ["John Pork"]        = "<:John_Pork_Trait_HD:1526147509460664380>",
+        ["Lucky"]            = "<:Lucky:1526146094675787877>",
+        ["Matteo Hat"]       = "<:MatteoHat:1526146756004417597>",
+        ["Meowl"]            = "<:ICON_Meowl:1526147660673847317>",
+        ["Sombrero"]         = "<:Mexico_Hat:1526145924844224583>",
+        ["Nyan"]             = "<:Nyan:1526147310399000646>",
+        ["Pink Balloon"]     = "<:PinkBalloon:1526146180227268638>",
+        ["Pink Egg"]         = "<:PinkEgg:1526146411962433566>",
+        ["Rainbow Balloon"]  = "<:RainbowBalloon:1526146214175969411>",
+        ["Red Balloon"]      = "<:RedBalloon:1526146151022067732>",
+        ["Reindeer Pet"]     = "<:Reindeer:1526146642036785212>",
+        ["Rose"]             = "<:Rose:1526147384201969684>",
+        ["Santa Hat"]        = "<:SantaHatIcon:1526146592074240070>",
+        ["Shark Fin"]        = "<:Shark_Fin:1526146666409885767>",
+        ["Skibidi"]          = "<:SkibidiIcon:1526147476782973028>",
+        ["Sleepy"]           = "<:Sleepy:1526146936522932406>",
+        ["Snowy"]            = "<:Snowy:1526145862684774601>",
+        ["Spider"]           = "<:Spider:1526146795825270915>",
+        ["Strawberry"]       = "<:Strawberry:1526147692269408266>",
+        ["Taco"]             = "<:Taco:1526146973433073704>",
+        ["Tie"]              = "<:Tie:1526146822903693422>",
+        ["Wet"]              = "<:Wet:1526145830506070056>",
+        ["Zombie"]           = "<:EvilTungTungSahur1:1537678175977480334>",
+        ["Paint"]            = "<:Chicleteirabicicleteira:1526146906546241657>",
+        ["Orange Balloon"]   = "<:orangeballoon:1542305480565592134>",
+        ["Green Balloon"]    = "<:greenballoon:1542305605807775764>",
+        ["Blue Balloon"]     = "<:blueballoon:1542305311413633125>",
+        ["Orange Egg"]       = "<:orangeegg:1542305816277811200>",
+        ["Green Egg"]        = "<:greenegg:1542305940215304313>",
+        ["Blue Egg"]         = "<:blueegg:1542306035404906497>",
+        ["Bull"]             = "<:bull:1542280218092376165>",
+        ["Lightning"]        = "<:Dragon:1526147276748099665>",
+        ["Skeleton"]         = "<:Extincty:1526145992209207307>",
+        ["Aura Shades"]      = "<:Aura_Shades1:1537678067751714816>",
+        ["Witch Hat"]        = "<:Witchhat:1526146475317526589>",
+        ["Sun"]              = "<:sun:1542318228041371768>",
+        ["Ice Bee"]          = "<:icebee:1542318162777739274>",
+        ["Fire Bee"]         = "<:firebee:1542318193681629275>",
+        ["Job Application"]  = "<:jobapplication:1542317461079203880>",
+        ["Bee"]              = "<:bee:1542317981818945538>",
+        ["Queen Bee"]        = "<:queenbee:1543056608181882910>",
+    }
+
+    -- Aliases: nome detectado no jogo → chave no WEBHOOK_TRAIT_EMOJIS
+    local TRAIT_ALIAS = {
+        ["Comet-struck"]   = "Cometstruck",
+        ["Crab Claw"]      = "Claws",
+        ["RIP Tombstone"]  = "RIP Gravestone",
+        ["Jack O'Lantern"] = "Jackolantern Pet",
+        ["Jack O'Lantern Pet"] = "Jackolantern Pet",
+        ["Yin Yang"]       = "YinYang",  -- usado no lookup de mutação também
+    }
+
+    -- Cores por mutação (para a embed)
+    local MUT_COLOR = {
+        ["Crystal"]=0x8EF6FF, ["Phantom"]=0x6A0DAD, ["Disco"]=0xFF1493,
+        ["Cyber"]=0x00E5FF,   ["Rainbow"]=0xFF5FD2, ["Divine"]=0xFFF3B0,
+        ["Cursed"]=0x8B0000,  ["Radioactive"]=0x9BFF3C, ["YinYang"]=0xE8E8E8,
+        ["Yin Yang"]=0xE8E8E8,["Galaxy"]=0x4B0082,  ["Lava"]=0xFF4500,
+        ["Candy"]=0xFF77C8,   ["Bloodrot"]=0xB22222, ["Diamond"]=0xB9F2FF,
+        ["Gold"]=0xFFD700,    ["Neon"]=0xFF6EC7,
+    }
+
+    -- Ordem de varredura para mutações (mais rara → mais comum)
+    local MUT_ORDER = {
+        "Crystal","Phantom","Disco","Cyber","Rainbow","Divine","Cursed",
+        "Radioactive","Yin Yang","Galaxy","Lava","Candy","Bloodrot",
+        "Diamond","Gold","Neon",
+    }
+
+    -- Ordem de varredura para traits (mais específico → mais curto)
+    local TRAIT_ORDER = {
+        "Rainbow Balloon","Orange Balloon","Green Balloon","Blue Balloon",
+        "Pink Balloon","Red Balloon","Pink Egg","Orange Egg","Green Egg","Blue Egg",
+        "Jack O'Lantern Pet","RIP Gravestone","RIP Tombstone","Jackolantern Pet",
+        "Reindeer Pet","Bunny Ears","Matteo Hat","Santa Hat","Aura Shades",
+        "Witch Hat","Job Application","Ice Bee","Fire Bee","Queen Bee",
+        "Shark Fin","Crab Claw","Claws","Cometstruck","Comet-struck",
+        "John Pork","1 Year","Strawberry","Chocolate","Fireworks",
+        "Lightning","Galactic","Explosive","Skeleton","Bubblegum",
+        "Indonesia","Sombrero","Glitched","Granny","Skibidi","Zombie",
+        "Meowl","Spider","Brazil","Snowy","Lucky","Paint","Halo","Nyan",
+        "Rose","Fire Bee","Fire","Taco","Tie","UFO","Wet","Sleepy",
+        "Ball","Burger","Disco","Bull","Sun","Bee",":3","10B","26","1 Year",
+    }
+
+    -- ── Lookup de emoji ──────────────────────────────
+    local function getMutEmoji(name)
+        if not name then return nil end
+        local key = TRAIT_ALIAS[name] or name  -- normaliza "Yin Yang" → "YinYang"
+        if WEBHOOK_MUTATION_EMOJIS[key] then return WEBHOOK_MUTATION_EMOJIS[key] end
+        -- tenta case-insensitive
+        local kl = key:lower()
+        for k,v in pairs(WEBHOOK_MUTATION_EMOJIS) do
+            if k:lower()==kl then return v end
+        end
+        -- fallback: tenta nos trait emojis (ex: Disco)
+        if WEBHOOK_TRAIT_EMOJIS[key] then return WEBHOOK_TRAIT_EMOJIS[key] end
+        return name  -- nome puro se não achar emoji
+    end
+
+    local function getTraitEmoji(name)
+        local key = TRAIT_ALIAS[name] or name
+        if WEBHOOK_TRAIT_EMOJIS[key] then return WEBHOOK_TRAIT_EMOJIS[key] end
+        local kl = key:lower()
+        for k,v in pairs(WEBHOOK_TRAIT_EMOJIS) do
+            if k:lower()==kl then return v end
+        end
+        return name  -- fallback nome
+    end
+
+    -- ── Localizar plot rival ─────────────────────────
+    local function findRivalPlot()
+        local p3 = Vector3.new(-476.752,10.464,7.107)
+        local p7 = Vector3.new(-476.752,10.464,114.107)
+        for _,v in ipairs(workspace:GetDescendants()) do
+            if v:IsA("BasePart") and v.Name=="PlotSign" then
+                local d3=(v.Position-p3).Magnitude
+                local d7=(v.Position-p7).Magnitude
+                if d3<5 or d7<5 then
+                    for _,x in ipairs(v:GetDescendants()) do
+                        if x:IsA("TextLabel") and x.Text~="" then
+                            if x.Text:find(LP.Name,1,true) or x.Text:find(LP.DisplayName,1,true) then
+                                return (d3<5) and p7 or p3
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        return nil
+    end
+
+    -- ── Analisar SurfaceGui do brainrot ──────────────
+    local function analyzeSurfaceGui(sg)
+        local out = {name=nil,rarity=nil,mutation=nil,traits={}}
+        local textParts,nameParts = {},{}
+        for _,d in ipairs(sg:GetDescendants()) do
+            nameParts[#nameParts+1]=d.Name
+            if d:IsA("TextLabel") or d:IsA("TextButton") then
+                local t=stripTags(d.Text)
+                if t and t:gsub("%s","")~="" then
+                    textParts[#textParts+1]=t
+                    local n=d.Name
+                    if n=="DisplayName" then out.name=t
+                    elseif n=="Rarity" then out.rarity=t
+                    elseif n=="Mutation" or n=="Mutations" then out.mutation=t end
+                end
+            end
+        end
+        local blob=(table.concat(textParts," ").." "..table.concat(nameParts," ")):lower()
+
+        -- Mutação
+        local function canonMut(src)
+            local s=src:gsub("rainbow balloon"," ")
+            for _,m in ipairs(MUT_ORDER) do
+                if s:find(m:lower(),1,true) then return m end
+            end
+            return nil
+        end
+        if out.mutation and out.mutation~="" then
+            out.mutation=canonMut(out.mutation:lower()) or out.mutation
+        else
+            out.mutation=canonMut(blob)
+        end
+
+        -- Traits
+        local scan=blob
+        local seen={}
+        for _,tr in ipairs(TRAIT_ORDER) do
+            local key=tr:lower()
+            if scan:find(key,1,true) then
+                scan=scan:gsub(esc(key)," ")
+                local canonical = TRAIT_ALIAS[tr] or tr
+                if not seen[canonical] and (not out.mutation or out.mutation:lower()~=key) then
+                    seen[canonical]=true
+                    out.traits[#out.traits+1]=canonical
+                end
+            end
+        end
+        return out
+    end
+
+    -- ── Obter brainrot vencedor ──────────────────────
+    local function getBrainrot()
+        local targetPos=findRivalPlot()
+        if not targetPos then return {name="Unknown",value="N/A"} end
+        local debris=workspace:FindFirstChild("Debris")
+        if not debris then return {name="Unknown",value="N/A"} end
+        local bestVal,bestSg
+        for _,v in ipairs(debris:GetChildren()) do
+            if v.Name~="FastOverheadTemplate" then continue end
+            local sg=v:FindFirstChildOfClass("SurfaceGui")
+            if not sg or not sg.Adornee then continue end
+            if (sg.Adornee.Position-targetPos).Magnitude>50 then continue end
+            local gen=sg:FindFirstChild("Generation",true)
+            if gen and gen:IsA("TextLabel") then
+                local val=parseNumber(gen.Text)
+                if not bestVal or val>bestVal then bestVal=val; bestSg=sg end
+            end
+        end
+        if not bestSg then return {name="Unknown",value="N/A"} end
+        local info=analyzeSurfaceGui(bestSg)
+        return {
+            name=info.name or "Unknown",
+            value=bestVal and formatShortNumber(bestVal) or "N/A",
+            mutation=info.mutation,
+            traits=info.traits,
+            rarity=info.rarity,
+        }
+    end
+
+    -- ── Montar e enviar embed ────────────────────────
+    local function sendWebhook(br)
+        if not HttpRequest then return end
+
+        -- Emoji e cor da mutação
+        local mutEmoji = getMutEmoji(br.mutation)
+        local mutKey   = br.mutation and (TRAIT_ALIAS[br.mutation] or br.mutation) or nil
+        local color    = (mutKey and MUT_COLOR[mutKey]) or MUT_COLOR[br.mutation] or 0x2B2D31
+
+        -- Emojis dos traits concatenados
+        local traitStr = "—"
+        if br.traits and #br.traits>0 then
+            local parts={}
+            for _,tr in ipairs(br.traits) do parts[#parts+1]=getTraitEmoji(tr) end
+            traitStr=table.concat(parts," ")
+        end
+
+        -- Brainrot: emoji de mutação + nome (sem campo separado de mutação)
+        local brainrotVal = mutEmoji.." **"..tostring(br.name).."**"
+
+        local fields = {
+            { name="Brainrot:", value=brainrotVal,                    inline=true },
+            { name="Value:", value="`"..tostring(br.value).."/s`", inline=true },
+        }
+        fields[#fields+1]={ name="Traits:",  value=tostring(traitStr),          inline=false }
+        fields[#fields+1]={ name="Stealer:", value="`"..LP.DisplayName.."`", inline=false }
+
+        local avatar=string.format(
+            "https://www.roblox.com/headshot-thumbnail/image?userId=%d&width=420&height=420&format=png",
+            LP.UserId
+        )
+
+        pcall(function()
+            HttpRequest({
+                Url=WEBHOOK_URL, Method="POST",
+                Headers={["Content-Type"]="application/json"},
+                Body=HttpService:JSONEncode({
+                    username="V3NT DUELS",
+                    embeds={{
+                        title    ="🏆 V3NT DUELS WON 🏆",
+                        color    =color,
+                        thumbnail={ url=avatar },
+                        fields   =fields,
+                        footer   ={ text="V3NT DUELS  \226\128\162  "..os.date("%H:%M:%S") },
+                        timestamp=os.date("!%Y-%m-%dT%H:%M:%SZ"),
+                    }}
+                })
+            })
+        end)
+    end
+
+    -- ── Detector de vitória ──────────────────────────
+    local function onWin()
+        if tick()-lastWin<COOLDOWN then return end
+        lastWin=tick()
+        print("[V3NT DUELS] WIN DETECTED!")
+        local br=getBrainrot()
+        print(string.format("[V3NT DUELS] %s | %s | Mut:%s | Traits:%d",
+            br.name,br.value,tostring(br.mutation),br.traits and #br.traits or 0))
+        sendWebhook(br)
+    end
+
+    local function scanUIElement(obj)
+        if not(obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then return end
+        local clean=stripTags(obj.Text):lower()
+        if clean:find(LP.Name:lower(),1,true) and clean:find("won the duel",1,true) then
+            onWin()
+        end
+    end
+
+    local playerGui=LP:WaitForChild("PlayerGui")
+    local function hookUIElement(v)
+        scanUIElement(v)
+        if v:IsA("TextLabel") or v:IsA("TextButton") or v:IsA("TextBox") then
+            v:GetPropertyChangedSignal("Text"):Connect(function() scanUIElement(v) end)
+        end
+    end
+    for _,v in ipairs(playerGui:GetDescendants()) do hookUIElement(v) end
+    playerGui.DescendantAdded:Connect(hookUIElement)
+end)
+
+print("V3NT ANTI BAT - Win Detect (Emoji Edition)")
