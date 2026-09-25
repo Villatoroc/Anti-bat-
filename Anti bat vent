@@ -35,7 +35,8 @@ local Config = {
     AntiBat = false,
     HoldJump = false,
     IsCollapsed = false,
-    GuiVisible = true
+    GuiVisible = true,
+    GuiLocked = false
 }
 
 local function SaveConfig()
@@ -97,7 +98,7 @@ mainCorner.CornerRadius = UDim.new(0, 12)
 -- Arrastre
 local dragging, dragInput, dragStart, mainStart = false, nil, nil, nil
 main.InputBegan:Connect(function(inp)
-    if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+    if not Config.GuiLocked and (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) then
         dragging = true; dragStart = inp.Position; mainStart = main.Position
         inp.Changed:Connect(function()
             if inp.UserInputState == Enum.UserInputState.End then 
@@ -151,6 +152,33 @@ minBtn.Font = Enum.Font.GothamBlack
 minBtn.TextSize = 14
 minBtn.ZIndex = 5
 Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 6)
+
+-- Botón para bloquear/desbloquear el arrastre de la GUI
+local lockBtn = Instance.new("TextButton", main)
+lockBtn.Size = UDim2.new(0, 20, 0, 20)
+lockBtn.Position = UDim2.new(1, -52, 0, 8)
+lockBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+lockBtn.BackgroundTransparency = 0.5
+lockBtn.TextColor3 = C_TEXT_TITLE
+lockBtn.Font = Enum.Font.GothamBlack
+lockBtn.TextSize = 11
+lockBtn.ZIndex = 5
+Instance.new("UICorner", lockBtn).CornerRadius = UDim.new(0, 6)
+
+local function updateLockVisual()
+    lockBtn.Text = Config.GuiLocked and "🔒" or "🔓"
+    lockBtn.TextColor3 = Config.GuiLocked and C_INACTIVE or C_ACTIVE
+end
+
+lockBtn.MouseButton1Click:Connect(function()
+    Config.GuiLocked = not Config.GuiLocked
+    dragging = false
+    dragInput = nil
+    updateLockVisual()
+    SaveConfig()
+end)
+updateLockVisual()
+
 minBtn.MouseButton1Click:Connect(function()
     Config.IsCollapsed = not Config.IsCollapsed
     local targetHeight = Config.IsCollapsed and GUI_COLLAPSED_HEIGHT or GUI_EXPANDED_HEIGHT
@@ -415,19 +443,17 @@ end
 --  LÓGICA: ANTI BAT (fijar velocidad horizontal)
 -- =====================================================
 local antiBatConnection = nil
-local AntiBatForceX = 1000
-local AntiBatForceZ = 1000
 
 local function startAntiBat()
-    if antiBatConnection then return end
+    local char = LP.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    if antiBatConnection then antiBatConnection:Disconnect() end
     antiBatConnection = RunService.Heartbeat:Connect(function()
-        if not Config.AntiBat then return end
-        local char = LP.Character
-        if not char then return end
-        local root = char:FindFirstChild("HumanoidRootPart")
-        if not root then return end
+        if not root or not root.Parent then return end
         local origXZ = Vector3.new(root.Velocity.X, 0, root.Velocity.Z)
-        root.Velocity = Vector3.new(AntiBatForceX, root.Velocity.Y, AntiBatForceZ)
+        root.Velocity = Vector3.new(1000, root.Velocity.Y, 1000)
         RunService.RenderStepped:Wait()
         root.Velocity = Vector3.new(origXZ.X, root.Velocity.Y, origXZ.Z)
     end)
