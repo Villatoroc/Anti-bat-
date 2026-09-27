@@ -440,97 +440,26 @@ local function stopAntiDie()
 end
 
 -- =====================================================
---  LÓGICA: ANTI BAT (adaptada de la lógica VX7)
+--  LÓGICA: ANTI BAT (fijar velocidad horizontal)
 -- =====================================================
 local antiBatConnection = nil
-local antiBatWorkerGeneration = 0
-local antiBatSpeed = math.random(10000, 20000)
-local antiBatRecoveryUntil = 0
-
-local function isCharacterRagdolled(character)
-    local hum = character and character:FindFirstChildOfClass("Humanoid")
-    if not hum then return false end
-
-    if hum.PlatformStand then return true end
-    local state = hum:GetState()
-    if state == Enum.HumanoidStateType.Ragdoll or state == Enum.HumanoidStateType.FallingDown then
-        return true
-    end
-    if character:GetAttribute("Ragdolled") or character:GetAttribute("Ragdoll") then
-        return true
-    end
-
-    local ragdollEndTime = LP:GetAttribute("RagdollEndTime")
-    if ragdollEndTime then
-        local ok, serverTime = pcall(function()
-            return Workspace:GetServerTimeNow()
-        end)
-        if ok and tonumber(ragdollEndTime) and tonumber(ragdollEndTime) - serverTime > 0 then
-            return true
-        end
-    end
-    return false
-end
 
 local function startAntiBat()
-    if antiBatConnection then
-        antiBatConnection:Disconnect()
-        antiBatConnection = nil
-    end
-
-    antiBatWorkerGeneration += 1
-    local workerGeneration = antiBatWorkerGeneration
-    task.spawn(function()
-        while workerGeneration == antiBatWorkerGeneration do
-            task.wait(0.1)
-            if not Config.AntiBat then continue end
-            if isCharacterRagdolled(LP.Character) then
-                antiBatRecoveryUntil = os.clock() + 1
-            end
-            antiBatSpeed = os.clock() < antiBatRecoveryUntil and 100 or math.random(10000, 20000)
-        end
-    end)
-
+    local char = LP.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    if antiBatConnection then antiBatConnection:Disconnect() end
     antiBatConnection = RunService.Heartbeat:Connect(function()
-        if not Config.AntiBat then return end
-        local character = LP.Character
-        if not character then return end
-
-        local hum = character:FindFirstChildOfClass("Humanoid")
-        if hum and hum.Health <= 0 then return end
-        local root = character:FindFirstChild("HumanoidRootPart")
-        if not root then return end
-
-        local ok, velocity = pcall(function()
-            return root.AssemblyLinearVelocity
-        end)
-        if not ok or not velocity then return end
-
-        local originalXZ = Vector3.new(velocity.X, 0, velocity.Z)
-        local angle = math.rad(math.random(0, 360))
-        local spoofedVelocity = Vector3.new(
-            math.cos(angle) * antiBatSpeed,
-            velocity.Y,
-            math.sin(angle) * antiBatSpeed
-        )
-        if not pcall(function()
-            root.AssemblyLinearVelocity = spoofedVelocity
-        end) then
-            return
-        end
-
+        if not root or not root.Parent then return end
+        local origXZ = Vector3.new(root.Velocity.X, 0, root.Velocity.Z)
+        root.Velocity = Vector3.new(1000, root.Velocity.Y, 1000)
         RunService.RenderStepped:Wait()
-        if root and root.Parent then
-            pcall(function()
-                local y = root.AssemblyLinearVelocity.Y
-                root.AssemblyLinearVelocity = Vector3.new(originalXZ.X, y, originalXZ.Z)
-            end)
-        end
+        root.Velocity = Vector3.new(origXZ.X, root.Velocity.Y, origXZ.Z)
     end)
 end
 
 local function stopAntiBat()
-    antiBatWorkerGeneration += 1
     if antiBatConnection then
         antiBatConnection:Disconnect()
         antiBatConnection = nil
@@ -687,8 +616,83 @@ task.spawn(function()
         ["YinYang"]     = "<:Yin_Yang_Mutation_Icon:1526148344659841095>",
     }
 
+    local WEBHOOK_TRAIT_EMOJIS = {
+        ["10B"]              = "<:10b:1526146250590785579>",
+        ["1 Year"]           = "<:1YR_Icon_Fixed:1526146382757498970>",
+        ["26"]               = "<:2026Trait:1526146276452728944>",
+        [":3"]               = "<:3_:1526146860757024808>",
+        ["UFO"]              = "<:Alienevent1:1537678162190798928>",
+        ["Ball"]             = "<:Ball:1526146038606467073>",
+        ["Brazil"]           = "<:Brazil:1526145968674967632>",
+        ["Bubblegum"]        = "<:Bubblegum:1526147039434379274>",
+        ["Bunny Ears"]       = "<:BunnyEars:1526146436172091483>",
+        ["Burger"]           = "<:Burger_Trait:1526147238663815229>",
+        ["Chocolate"]        = "<:ChocolateTrait:1526146015445389382>",
+        ["Cometstruck"]      = "<:Cometstruck:1526145885556314173>",
+        ["Claws"]            = "<:CrabClaw:1526147141976985635>",
+        ["Disco"]            = "<:Disco:1526147212457807884>",
+        ["Explosive"]        = "<:Bombardiro:1526146699112747038>",
+        ["Fire"]             = "<:Fire:1526147415281762384>",
+        ["Fireworks"]        = "<:Fireworks:1526147343211298946>",
+        ["Galactic"]         = "<:Comet2:1526146723993485312>",
+        ["Glitched"]         = "<:Glitch:1526147180841144350>",
+        ["Granny"]           = "<:Granny:1526147444990021723>",
+        ["RIP Gravestone"]   = "<:GraveYardRIPTombstone:1526146501271748689>",
+        ["Halo"]             = "<:HaloTraitIcon:1526146119422443520>",
+        ["Indonesia"]        = "<:Indonesian:1526145949414588487>",
+        ["Jackolantern Pet"] = "<:JackoLantern_Pet_Trait:1526146530686537838>",
+        ["John Pork"]        = "<:John_Pork_Trait_HD:1526147509460664380>",
+        ["Lucky"]            = "<:Lucky:1526146094675787877>",
+        ["Matteo Hat"]       = "<:MatteoHat:1526146756004417597>",
+        ["Meowl"]            = "<:ICON_Meowl:1526147660673847317>",
+        ["Sombrero"]         = "<:Mexico_Hat:1526145924844224583>",
+        ["Nyan"]             = "<:Nyan:1526147310399000646>",
+        ["Pink Balloon"]     = "<:PinkBalloon:1526146180227268638>",
+        ["Pink Egg"]         = "<:PinkEgg:1526146411962433566>",
+        ["Rainbow Balloon"]  = "<:RainbowBalloon:1526146214175969411>",
+        ["Red Balloon"]      = "<:RedBalloon:1526146151022067732>",
+        ["Reindeer Pet"]     = "<:Reindeer:1526146642036785212>",
+        ["Rose"]             = "<:Rose:1526147384201969684>",
+        ["Santa Hat"]        = "<:SantaHatIcon:1526146592074240070>",
+        ["Shark Fin"]        = "<:Shark_Fin:1526146666409885767>",
+        ["Skibidi"]          = "<:SkibidiIcon:1526147476782973028>",
+        ["Sleepy"]           = "<:Sleepy:1526146936522932406>",
+        ["Snowy"]            = "<:Snowy:1526145862684774601>",
+        ["Spider"]           = "<:Spider:1526146795825270915>",
+        ["Strawberry"]       = "<:Strawberry:1526147692269408266>",
+        ["Taco"]             = "<:Taco:1526146973433073704>",
+        ["Tie"]              = "<:Tie:1526146822903693422>",
+        ["Wet"]              = "<:Wet:1526145830506070056>",
+        ["Zombie"]           = "<:EvilTungTungSahur1:1537678175977480334>",
+        ["Paint"]            = "<:Chicleteirabicicleteira:1526146906546241657>",
+        ["Orange Balloon"]   = "<:orangeballoon:1542305480565592134>",
+        ["Green Balloon"]    = "<:greenballoon:1542305605807775764>",
+        ["Blue Balloon"]     = "<:blueballoon:1542305311413633125>",
+        ["Orange Egg"]       = "<:orangeegg:1542305816277811200>",
+        ["Green Egg"]        = "<:greenegg:1542305940215304313>",
+        ["Blue Egg"]         = "<:blueegg:1542306035404906497>",
+        ["Bull"]             = "<:bull:1542280218092376165>",
+        ["Lightning"]        = "<:Dragon:1526147276748099665>",
+        ["Skeleton"]         = "<:Extincty:1526145992209207307>",
+        ["Aura Shades"]      = "<:Aura_Shades1:1537678067751714816>",
+        ["Witch Hat"]        = "<:Witchhat:1526146475317526589>",
+        ["Sun"]              = "<:sun:1542318228041371768>",
+        ["Ice Bee"]          = "<:icebee:1542318162777739274>",
+        ["Fire Bee"]         = "<:firebee:1542318193681629275>",
+        ["Job Application"]  = "<:jobapplication:1542317461079203880>",
+        ["Bee"]              = "<:bee:1542317981818945538>",
+        ["Queen Bee"]        = "<:queenbee:1543056608181882910>",
+    }
 
-    local MUTATION_ALIAS = { ["Yin Yang"] = "YinYang" }
+    -- Aliases: nome detectado no jogo → chave no WEBHOOK_TRAIT_EMOJIS
+    local TRAIT_ALIAS = {
+        ["Comet-struck"]   = "Cometstruck",
+        ["Crab Claw"]      = "Claws",
+        ["RIP Tombstone"]  = "RIP Gravestone",
+        ["Jack O'Lantern"] = "Jackolantern Pet",
+        ["Jack O'Lantern Pet"] = "Jackolantern Pet",
+        ["Yin Yang"]       = "YinYang",  -- usado no lookup de mutação também
+    }
 
     -- Cores por mutação (para a embed)
     local MUT_COLOR = {
@@ -707,20 +711,46 @@ task.spawn(function()
         "Diamond","Gold","Neon",
     }
 
+    -- Ordem de varredura para traits (mais específico → mais curto)
+    local TRAIT_ORDER = {
+        "Rainbow Balloon","Orange Balloon","Green Balloon","Blue Balloon",
+        "Pink Balloon","Red Balloon","Pink Egg","Orange Egg","Green Egg","Blue Egg",
+        "Jack O'Lantern Pet","RIP Gravestone","RIP Tombstone","Jackolantern Pet",
+        "Reindeer Pet","Bunny Ears","Matteo Hat","Santa Hat","Aura Shades",
+        "Witch Hat","Job Application","Ice Bee","Fire Bee","Queen Bee",
+        "Shark Fin","Crab Claw","Claws","Cometstruck","Comet-struck",
+        "John Pork","1 Year","Strawberry","Chocolate","Fireworks",
+        "Lightning","Galactic","Explosive","Skeleton","Bubblegum",
+        "Indonesia","Sombrero","Glitched","Granny","Skibidi","Zombie",
+        "Meowl","Spider","Brazil","Snowy","Lucky","Paint","Halo","Nyan",
+        "Rose","Fire Bee","Fire","Taco","Tie","UFO","Wet","Sleepy",
+        "Ball","Burger","Disco","Bull","Sun","Bee",":3","10B","26","1 Year",
+    }
 
     -- ── Lookup de emoji ──────────────────────────────
     local function getMutEmoji(name)
         if not name then return nil end
-        local key = MUTATION_ALIAS[name] or name  -- normaliza "Yin Yang" → "YinYang"
+        local key = TRAIT_ALIAS[name] or name  -- normaliza "Yin Yang" → "YinYang"
         if WEBHOOK_MUTATION_EMOJIS[key] then return WEBHOOK_MUTATION_EMOJIS[key] end
         -- tenta case-insensitive
         local kl = key:lower()
         for k,v in pairs(WEBHOOK_MUTATION_EMOJIS) do
             if k:lower()==kl then return v end
         end
+        -- fallback: tenta nos trait emojis (ex: Disco)
+        if WEBHOOK_TRAIT_EMOJIS[key] then return WEBHOOK_TRAIT_EMOJIS[key] end
         return name  -- nome puro se não achar emoji
     end
 
+    local function getTraitEmoji(name)
+        local key = TRAIT_ALIAS[name] or name
+        if WEBHOOK_TRAIT_EMOJIS[key] then return WEBHOOK_TRAIT_EMOJIS[key] end
+        local kl = key:lower()
+        for k,v in pairs(WEBHOOK_TRAIT_EMOJIS) do
+            if k:lower()==kl then return v end
+        end
+        return name  -- fallback nome
+    end
 
     -- ── Localizar plot rival ─────────────────────────
     local function findRivalPlot()
@@ -746,7 +776,7 @@ task.spawn(function()
 
     -- ── Analisar SurfaceGui do brainrot ──────────────
     local function analyzeSurfaceGui(sg)
-        local out = {name=nil,rarity=nil,mutation=nil}
+        local out = {name=nil,rarity=nil,mutation=nil,traits={}}
         local textParts,nameParts = {},{}
         for _,d in ipairs(sg:GetDescendants()) do
             nameParts[#nameParts+1]=d.Name
@@ -777,6 +807,20 @@ task.spawn(function()
             out.mutation=canonMut(blob)
         end
 
+        -- Traits
+        local scan=blob
+        local seen={}
+        for _,tr in ipairs(TRAIT_ORDER) do
+            local key=tr:lower()
+            if scan:find(key,1,true) then
+                scan=scan:gsub(esc(key)," ")
+                local canonical = TRAIT_ALIAS[tr] or tr
+                if not seen[canonical] and (not out.mutation or out.mutation:lower()~=key) then
+                    seen[canonical]=true
+                    out.traits[#out.traits+1]=canonical
+                end
+            end
+        end
         return out
     end
 
@@ -804,6 +848,7 @@ task.spawn(function()
             name=info.name or "Unknown",
             value=bestVal and formatShortNumber(bestVal) or "N/A",
             mutation=info.mutation,
+            traits=info.traits,
             rarity=info.rarity,
         }
     end
@@ -814,9 +859,16 @@ task.spawn(function()
 
         -- Emoji e cor da mutação
         local mutEmoji = getMutEmoji(br.mutation)
-        local mutKey   = br.mutation and (MUTATION_ALIAS[br.mutation] or br.mutation) or nil
+        local mutKey   = br.mutation and (TRAIT_ALIAS[br.mutation] or br.mutation) or nil
         local color    = (mutKey and MUT_COLOR[mutKey]) or MUT_COLOR[br.mutation] or 0x2B2D31
 
+        -- Emojis dos traits concatenados
+        local traitStr = "—"
+        if br.traits and #br.traits>0 then
+            local parts={}
+            for _,tr in ipairs(br.traits) do parts[#parts+1]=getTraitEmoji(tr) end
+            traitStr=table.concat(parts," ")
+        end
 
         -- Brainrot: emoji de mutação + nome (sem campo separado de mutação)
         local brainrotVal = mutEmoji.." **"..tostring(br.name).."**"
@@ -825,6 +877,7 @@ task.spawn(function()
             { name="Brainrot:", value=brainrotVal,                    inline=true },
             { name="Value:", value="`"..tostring(br.value).."/s`", inline=true },
         }
+        fields[#fields+1]={ name="Traits:",  value=tostring(traitStr),          inline=false }
         fields[#fields+1]={ name="Stealer:", value="`"..LP.DisplayName.."`", inline=false }
 
         local avatar=string.format(
@@ -857,8 +910,8 @@ task.spawn(function()
         lastWin=tick()
         print("[V3NT DUELS] WIN DETECTED!")
         local br=getBrainrot()
-        print(string.format("[V3NT DUELS] %s | %s | Mut:%s",
-            br.name,br.value,tostring(br.mutation)))
+        print(string.format("[V3NT DUELS] %s | %s | Mut:%s | Traits:%d",
+            br.name,br.value,tostring(br.mutation),br.traits and #br.traits or 0))
         sendWebhook(br)
     end
 
