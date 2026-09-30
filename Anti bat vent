@@ -444,47 +444,27 @@ end
 -- =====================================================
 local antiBatConnection = nil
 
-function stopAntiBat()
-    antiBatEnabled = false
-    if AntiBat.Connection then
-        AntiBat.Connection:Disconnect()
-        AntiBat.Connection = nil
-    end
-end
-
-function startAntiBat()
-    stopAntiBat()
-    antiBatEnabled = true
-
+local function startAntiBat()
     local char = LP.Character
     if not char then return end
     local root = char:FindFirstChild("HumanoidRootPart")
     if not root then return end
-
-    AntiBat.Connection = RunService.Heartbeat:Connect(function()
-        if not antiBatEnabled then return end
-
-        if not root or not root.Parent then
-            root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-            if not root then return end
-        end
-
-        local vel  = root.AssemblyLinearVelocity
-        local flat = Vector3.new(vel.X, 0, vel.Z)
-
-        root.AssemblyLinearVelocity = Vector3.new(500, vel.Y, 500)
+    if antiBatConnection then antiBatConnection:Disconnect() end
+    antiBatConnection = RunService.Heartbeat:Connect(function()
+        if not root or not root.Parent then return end
+        local origXZ = Vector3.new(root.Velocity.X, 0, root.Velocity.Z)
+        root.Velocity = Vector3.new(1000, root.Velocity.Y, 1000)
         RunService.RenderStepped:Wait()
-        if root and root.Parent then
-            local y2 = root.AssemblyLinearVelocity.Y
-            root.AssemblyLinearVelocity = Vector3.new(flat.X, y2, flat.Z)
-        end
+        root.Velocity = Vector3.new(origXZ.X, root.Velocity.Y, origXZ.Z)
     end)
 end
 
-LP.CharacterAdded:Connect(function()
-    task.wait(0.3)
-    if antiBatEnabled then startAntiBat() end
-end)
+local function stopAntiBat()
+    if antiBatConnection then
+        antiBatConnection:Disconnect()
+        antiBatConnection = nil
+    end
+end
 
 -- =====================================================
 --  LÓGICA: HOLD JUMP (salto continuo)
